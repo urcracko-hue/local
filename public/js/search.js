@@ -1,11 +1,13 @@
-// Search Page JavaScript
+// ===============================
+// Search Page JavaScript (FIXED)
+// ===============================
 
 let currentPage = 1;
 let totalPages = 1;
 let userLocation = null;
 let professions = [];
 
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', () => {
     initNavigation();
     loadProfessions();
     initFilters();
@@ -13,9 +15,20 @@ document.addEventListener('DOMContentLoaded', function() {
     initLocationDetection();
 });
 
-// Navigation Toggle
+// -------------------------------
+// Helpers
+// -------------------------------
+const $ = (id) => document.getElementById(id);
+
+function safeDisplay(el, value) {
+    if (el) el.style.display = value;
+}
+
+// -------------------------------
+// Navigation
+// -------------------------------
 function initNavigation() {
-    const navToggle = document.getElementById('navToggle');
+    const navToggle = $('navToggle');
     const navMenu = document.querySelector('.nav-menu');
 
     if (navToggle && navMenu) {
@@ -25,65 +38,56 @@ function initNavigation() {
     }
 }
 
+// -------------------------------
 // Load Professions
+// -------------------------------
 async function loadProfessions() {
-    const select = document.getElementById('professionFilter');
+    const select = $('professionFilter');
     if (!select) return;
 
     try {
-        const response = await fetch('/api/freelancers/professions');
-        const data = await response.json();
+        const res = await fetch('/api/freelancers/professions');
+        const data = await res.json();
 
-        if (data.success) {
-            professions = data.data;
+        if (!data.success) return;
 
-            // Populate select
-            professions.forEach(prof => {
-                const option = document.createElement('option');
-                option.value = prof.id;
-                option.textContent = `${prof.icon} ${prof.name}`;
-                select.appendChild(option);
-            });
+        professions = data.data;
 
-            // Populate category filters
-            populateCategoryFilters(data.data);
-        }
-    } catch (error) {
-        console.error('Error loading professions:', error);
+        professions.forEach(prof => {
+            const opt = document.createElement('option');
+            opt.value = prof.id;
+            opt.textContent = `${prof.icon} ${prof.name}`;
+            select.appendChild(opt);
+        });
+
+        populateCategoryFilters(professions);
+
+    } catch (err) {
+        console.error('Profession load error:', err);
     }
 }
 
-// Populate Category Filters
-function populateCategoryFilters(professions) {
-    const container = document.getElementById('categoryFilters');
+// -------------------------------
+// Category Filters
+// -------------------------------
+function populateCategoryFilters(list) {
+    const container = $('categoryFilters');
     if (!container) return;
 
-    // Create quick filter buttons (top 8 professions)
-    const popularProfs = professions.slice(0, 8);
-
-    container.innerHTML = popularProfs.map(prof => `
-        <button class="category-filter-btn" data-profession="${prof.id}">
-            <span>${prof.icon}</span>
-            <span>${prof.name}</span>
+    container.innerHTML = list.slice(0, 8).map(p => `
+        <button class="category-filter-btn" data-profession="${p.id}">
+            <span>${p.icon}</span>
+            <span>${p.name}</span>
         </button>
     `).join('');
 
-    // Add click handlers
     container.querySelectorAll('.category-filter-btn').forEach(btn => {
-        btn.addEventListener('click', function () {
+        btn.addEventListener('click', () => {
+            const select = $('professionFilter');
+            if (select) select.value = btn.dataset.profession;
 
-            const profession = this.dataset.profession; // ✅ FIXED
-
-            const professionSelect = document.getElementById('professionFilter');
-            if (professionSelect) {
-                professionSelect.value = profession;
-            }
-
-            // Update active state
-            container.querySelectorAll('.category-filter-btn')
-                .forEach(b => b.classList.remove('active'));
-
-            this.classList.add('active');
+            container.querySelectorAll('button').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
 
             currentPage = 1;
             searchFreelancers();
@@ -91,360 +95,224 @@ function populateCategoryFilters(professions) {
     });
 }
 
-
-// Parse URL Parameters
+// -------------------------------
+// URL Params
+// -------------------------------
 function parseURLParams() {
     const params = new URLSearchParams(window.location.search);
-    
+
     const profession = params.get('profession');
     const lat = params.get('lat');
     const lng = params.get('lng');
 
-    if (profession) {
-        document.getElementById('professionFilter').value = profession;
+    if (profession && $('professionFilter')) {
+        $('professionFilter').value = profession;
     }
 
     if (lat && lng) {
-        userLocation = {
-            latitude: parseFloat(lat),
-            longitude: parseFloat(lng)
-        };
+        userLocation = { latitude: +lat, longitude: +lng };
         updateLocationStatus(true);
     }
 
-    // Initial search
     searchFreelancers();
 }
 
-// Initialize Filters
+// -------------------------------
+// Filters & Pagination
+// -------------------------------
 function initFilters() {
-    const searchBtn = document.getElementById('searchBtn');
-    const resetBtn = document.getElementById('resetFilters');
-    const prevBtn = document.getElementById('prevPage');
-    const nextBtn = document.getElementById('nextPage');
+    $('searchBtn')?.addEventListener('click', () => {
+        currentPage = 1;
+        searchFreelancers();
+    });
 
-    if (searchBtn) {
-        searchBtn.addEventListener('click', () => {
-            currentPage = 1;
+    $('resetFilters')?.addEventListener('click', resetFilters);
+
+    $('prevPage')?.addEventListener('click', () => {
+        if (currentPage > 1) {
+            currentPage--;
             searchFreelancers();
-        });
-    }
+        }
+    });
 
-    if (resetBtn) {
-        resetBtn.addEventListener('click', resetFilters);
-    }
+    $('nextPage')?.addEventListener('click', () => {
+        if (currentPage < totalPages) {
+            currentPage++;
+            searchFreelancers();
+        }
+    });
 
-    if (prevBtn) {
-        prevBtn.addEventListener('click', () => {
-            if (currentPage > 1) {
-                currentPage--;
-                searchFreelancers();
-            }
-        });
-    }
+    const modal = $('freelancerModal');
+    $('closeModal')?.addEventListener('click', () => modal?.classList.remove('show'));
 
-    if (nextBtn) {
-        nextBtn.addEventListener('click', () => {
-            if (currentPage < totalPages) {
-                currentPage++;
-                searchFreelancers();
-            }
-        });
-    }
-
-    // Close modal
-    const closeModal = document.getElementById('closeModal');
-    const modal = document.getElementById('freelancerModal');
-    
-    if (closeModal && modal) {
-        closeModal.addEventListener('click', () => {
-            modal.classList.remove('show');
-        });
-
-        modal.addEventListener('click', (e) => {
-            if (e.target === modal) {
-                modal.classList.remove('show');
-            }
-        });
-    }
+    modal?.addEventListener('click', e => {
+        if (e.target === modal) modal.classList.remove('show');
+    });
 }
 
-// Initialize Location Detection
+// -------------------------------
+// Location Detection
+// -------------------------------
 function initLocationDetection() {
-    const locationBtn = document.getElementById('getLocationBtn');
-    if (!locationBtn) return;
+    const btn = $('getLocationBtn');
+    if (!btn) return;
 
-    locationBtn.addEventListener('click', function() {
-        if (!navigator.geolocation) {
-            alert('Geolocation is not supported by your browser');
-            return;
-        }
+    btn.addEventListener('click', () => {
+        if (!navigator.geolocation) return alert('Geolocation not supported');
 
-        const statusSpan = document.getElementById('locationStatus');
-        statusSpan.textContent = 'Detecting...';
-        locationBtn.disabled = true;
+        $('locationStatus') && ($('locationStatus').textContent = 'Detecting...');
+        btn.disabled = true;
 
         navigator.geolocation.getCurrentPosition(
-            async (position) => {
+            pos => {
                 userLocation = {
-                    latitude: position.coords.latitude,
-                    longitude: position.coords.longitude
+                    latitude: pos.coords.latitude,
+                    longitude: pos.coords.longitude
                 };
 
                 updateLocationStatus(true);
-                locationBtn.disabled = false;
-
-                // Get location name
-                try {
-                    const response = await fetch(
-                        `https://nominatim.openstreetmap.org/reverse?lat=${userLocation.latitude}&lon=${userLocation.longitude}&format=json`
-                    );
-                    const data = await response.json();
-                    
-                    if (data.address) {
-                        const locationName = data.address.suburb || 
-                                           data.address.neighbourhood || 
-                                           data.address.city || 
-                                           data.address.town || 
-                                           'Your Location';
-                        
-                        document.getElementById('currentLocation').textContent = locationName;
-                        document.getElementById('locationInfo').style.display = 'block';
-                    }
-                } catch (error) {
-                    console.log('Reverse geocoding failed:', error);
-                }
-
-                // Auto search
+                btn.disabled = false;
                 searchFreelancers();
             },
-            (error) => {
-                console.error('Geolocation error:', error);
-                statusSpan.textContent = 'Failed - Try Again';
-                locationBtn.disabled = false;
-                locationBtn.classList.remove('active');
-                
-                setTimeout(() => {
-                    statusSpan.textContent = 'Detect Location';
-                }, 2000);
-            },
-            {
-                enableHighAccuracy: true,
-                timeout: 10000,
-                maximumAge: 300000
+            () => {
+                btn.disabled = false;
+                updateLocationStatus(false);
             }
         );
     });
 }
 
-// Update Location Status
-function updateLocationStatus(detected) {
-    const locationBtn = document.getElementById('getLocationBtn');
-    const statusSpan = document.getElementById('locationStatus');
-    
-    if (detected) {
-        statusSpan.textContent = 'Location Set ✓';
-        locationBtn.classList.add('active');
-    } else {
-        statusSpan.textContent = 'Detect Location';
-        locationBtn.classList.remove('active');
-    }
+function updateLocationStatus(ok) {
+    const status = $('locationStatus');
+    const btn = $('getLocationBtn');
+
+    if (!status || !btn) return;
+
+    status.textContent = ok ? 'Location Set ✓' : 'Detect Location';
+    btn.classList.toggle('active', ok);
 }
 
-// Search Freelancers
+// -------------------------------
+// MAIN SEARCH (CRASH-PROOF)
+// -------------------------------
 async function searchFreelancers() {
-    const resultsGrid = document.getElementById('resultsGrid');
-    const loadingState = document.getElementById('loadingState');
-    const noResults = document.getElementById('noResults');
-    const pagination = document.getElementById('pagination');
-    const resultsInfo = document.getElementById('resultsInfo');
+    const resultsGrid = $('resultsGrid');
+    if (!resultsGrid) return;
 
-    // Show loading
+    const loadingState = $('loadingState');
+    const noResults = $('noResults');
+    const pagination = $('pagination');
+    const resultsInfo = $('resultsInfo');
+
     resultsGrid.innerHTML = '';
-    loadingState.style.display = 'block';
-    noResults.style.display = 'none';
-    pagination.style.display = 'none';
+    safeDisplay(loadingState, 'block');
+    safeDisplay(noResults, 'none');
+    safeDisplay(pagination, 'none');
 
-    // Build query params
     const params = new URLSearchParams();
-    
-    const profession = document.getElementById('professionFilter').value;
-    const radius = document.getElementById('radiusFilter').value;
 
-    if (profession && profession !== 'all') {
-        params.set('profession', profession);
-    }
+    const profession = $('professionFilter')?.value;
+    const radius = $('radiusFilter')?.value;
 
+    if (profession && profession !== 'all') params.set('profession', profession);
     if (userLocation) {
         params.set('latitude', userLocation.latitude);
         params.set('longitude', userLocation.longitude);
-        params.set('radius', radius);
+        params.set('radius', radius || 10);
     }
 
     params.set('page', currentPage);
     params.set('limit', 12);
 
     try {
-        const response = await fetch(`/api/freelancers/search?${params.toString()}`);
-        const data = await response.json();
+        const res = await fetch(`/api/freelancers/search?${params}`);
+        const data = await res.json();
 
-        loadingState.style.display = 'none';
+        safeDisplay(loadingState, 'none');
 
-        if (data.success && data.data.length > 0) {
-            displayResults(data.data);
-            
-            // Update pagination
-            totalPages = data.pagination.pages;
-            if (totalPages > 1) {
-                pagination.style.display = 'flex';
-                document.getElementById('pageInfo').textContent = `Page ${currentPage} of ${totalPages}`;
-                document.getElementById('prevPage').disabled = currentPage === 1;
-                document.getElementById('nextPage').disabled = currentPage === totalPages;
-            }
-
-            // Update results info
-            resultsInfo.innerHTML = `<span id="resultsCount">Found ${data.pagination.total} professional${data.pagination.total !== 1 ? 's' : ''}</span>`;
-        } else {
-            noResults.style.display = 'block';
-            resultsInfo.innerHTML = '<span id="resultsCount">No results found</span>';
+        if (!data.success || !data.data.length) {
+            safeDisplay(noResults, 'block');
+            resultsInfo && (resultsInfo.textContent = 'No results found');
+            return;
         }
-    } catch (error) {
-        console.error('Search error:', error);
-        loadingState.style.display = 'none';
-        resultsGrid.innerHTML = '<p class="error-message">Error loading results. Please try again.</p>';
+
+        displayResults(data.data);
+
+        totalPages = data.pagination.pages || 1;
+        if (pagination && totalPages > 1) {
+            safeDisplay(pagination, 'flex');
+            $('pageInfo') && ($('pageInfo').textContent = `Page ${currentPage} of ${totalPages}`);
+            $('prevPage') && ($('prevPage').disabled = currentPage === 1);
+            $('nextPage') && ($('nextPage').disabled = currentPage === totalPages);
+        }
+
+        resultsInfo && (resultsInfo.textContent =
+            `Found ${data.pagination.total} professional(s)`
+        );
+
+    } catch (err) {
+        console.error(err);
+        safeDisplay(loadingState, 'none');
+        resultsGrid.innerHTML = `<p class="error-message">Failed to load results</p>`;
     }
 }
 
-// Display Results
-function displayResults(freelancers) {
-    const resultsGrid = document.getElementById('resultsGrid');
-    
-    resultsGrid.innerHTML = freelancers.map(freelancer => {
-        const professionData = freelancer.professionDetails || {};
-        const distanceText = freelancer.distance !== undefined 
-            ? formatDistance(freelancer.distance) 
-            : '';
-        
-        return `
-            <div class="freelancer-card" onclick="showFreelancerDetail('${freelancer._id}')">
-                <div class="card-header">
-                    <div class="card-avatar">${freelancer.profilePicture || professionData.icon || '👤'}</div>
-                    <div class="card-title">
-                        <div class="card-name">${escapeHtml(freelancer.fullName)}</div>
-                        <div class="card-profession">
-                            ${professionData.icon || ''} ${professionData.name || freelancer.profession}
-                        </div>
-                    </div>
-                </div>
-                <div class="card-body">
-                    <div class="card-info">
-                        <div class="info-item">
-                            <span class="info-icon">📍</span>
-                            <span>${escapeHtml(freelancer.location.area)}, ${escapeHtml(freelancer.location.city)}</span>
-                        </div>
-                        <div class="info-item">
-                            <span class="info-icon">⏱️</span>
-                            <span>${freelancer.experience} year${freelancer.experience !== 1 ? 's' : ''} experience</span>
-                        </div>
-                        ${freelancer.isVerified ? '<div class="verified-badge">✓ Verified</div>' : ''}
-                    </div>
-                    <div class="card-footer">
-                        <div class="card-rate">₹${freelancer.rupeesPerHour} <span>/hour</span></div>
-                        ${distanceText ? `<div class="card-distance">📍 ${distanceText}</div>` : ''}
-                    </div>
-                </div>
-            </div>
-        `;
-    }).join('');
+// -------------------------------
+// Render Cards
+// -------------------------------
+function displayResults(list) {
+    const grid = $('resultsGrid');
+    if (!grid) return;
+
+    grid.innerHTML = list.map(f => `
+        <div class="freelancer-card" onclick="showFreelancerDetail('${f._id}')">
+            <div class="card-name">${escapeHtml(f.fullName)}</div>
+            <div>₹${f.rupeesPerHour}/hr</div>
+        </div>
+    `).join('');
 }
 
-// Show Freelancer Detail
+// -------------------------------
+// Modal Detail
+// -------------------------------
 async function showFreelancerDetail(id) {
-    const modal = document.getElementById('freelancerModal');
-    const detailContainer = document.getElementById('freelancerDetail');
-    
+    const modal = $('freelancerModal');
+    const detail = $('freelancerDetail');
+    if (!modal || !detail) return;
+
     modal.classList.add('show');
-    detailContainer.innerHTML = '<div class="loading-state"><div class="loader"></div><p>Loading...</p></div>';
+    detail.innerHTML = 'Loading...';
 
     try {
-        const response = await fetch(`/api/freelancers/${id}`);
-        const data = await response.json();
+        const res = await fetch(`/api/freelancers/${id}`);
+        const data = await res.json();
 
-        if (data.success) {
-            const freelancer = data.data;
-            const professionData = freelancer.professionDetails || {};
+        if (!data.success) throw 0;
 
-            detailContainer.innerHTML = `
-                <div class="detail-header">
-                    <div class="detail-avatar">${freelancer.profilePicture || professionData.icon || '👤'}</div>
-                    <div class="detail-name">${escapeHtml(freelancer.fullName)}</div>
-                    <div class="detail-profession">
-                        ${professionData.icon || ''} ${professionData.name || freelancer.profession}
-                        ${freelancer.isVerified ? '<span class="verified-badge">✓ Verified</span>' : ''}
-                    </div>
-                </div>
-                <div class="detail-body">
-                    <div class="detail-info">
-                        <div class="detail-item">
-                            <div class="detail-label">Experience</div>
-                            <div class="detail-value">${freelancer.experience} Years</div>
-                        </div>
-                        <div class="detail-item">
-                            <div class="detail-label">Rate</div>
-                            <div class="detail-value">₹${freelancer.rupeesPerHour}/hr</div>
-                        </div>
-                        <div class="detail-item">
-                            <div class="detail-label">Location</div>
-                            <div class="detail-value">${escapeHtml(freelancer.location.area)}</div>
-                        </div>
-                        <div class="detail-item">
-                            <div class="detail-label">City</div>
-                            <div class="detail-value">${escapeHtml(freelancer.location.city)}</div>
-                        </div>
-                    </div>
-                    <a href="tel:+91${freelancer.phoneNumber}" class="contact-btn">
-                        📞 Call +91 ${formatPhoneNumber(freelancer.phoneNumber)}
-                    </a>
-                </div>
-            `;
-        } else {
-            detailContainer.innerHTML = '<p class="error-message">Error loading profile</p>';
-        }
-    } catch (error) {
-        console.error('Error loading freelancer:', error);
-        detailContainer.innerHTML = '<p class="error-message">Error loading profile</p>';
+        detail.innerHTML = `
+            <h2>${escapeHtml(data.data.fullName)}</h2>
+            <p>₹${data.data.rupeesPerHour}/hr</p>
+        `;
+    } catch {
+        detail.innerHTML = 'Error loading profile';
     }
 }
 
-// Reset Filters
+// -------------------------------
+// Reset
+// -------------------------------
 function resetFilters() {
-    document.getElementById('professionFilter').value = 'all';
-    document.getElementById('radiusFilter').value = '10';
-    
-    const categoryBtns = document.querySelectorAll('.category-filter-btn');
-    categoryBtns.forEach(btn => btn.classList.remove('active'));
-    
+    $('professionFilter') && ($('professionFilter').value = 'all');
+    $('radiusFilter') && ($('radiusFilter').value = '10');
     currentPage = 1;
     searchFreelancers();
 }
 
-// Utility Functions
-function formatDistance(km) {
-    if (km < 1) {
-        return `${Math.round(km * 1000)} m`;
-    }
-    return `${km.toFixed(1)} km`;
-}
-
-function formatPhoneNumber(phone) {
-    if (phone.length === 10) {
-        return `${phone.slice(0, 5)} ${phone.slice(5)}`;
-    }
-    return phone;
-}
-
-function escapeHtml(text) {
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
+// -------------------------------
+// Utils
+// -------------------------------
+function escapeHtml(text = '') {
+    const d = document.createElement('div');
+    d.textContent = text;
+    return d.innerHTML;
 }
