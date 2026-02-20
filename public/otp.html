@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Mobile OTP Verification</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    background: #f3f4f6;
+    height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+  }
+
+  .box {
+    background: #fff;
+    padding: 25px;
+    max-width: 360px;
+    width: 100%;
+    border-radius: 10px;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+    text-align: center;
+  }
+
+  input {
+    width: 100%;
+    padding: 12px;
+    margin: 10px 0;
+    font-size: 16px;
+    border-radius: 6px;
+    border: 1px solid #ccc;
+  }
+
+  button {
+    width: 100%;
+    padding: 12px;
+    background: #2563eb;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    font-size: 16px;
+    cursor: pointer;
+  }
+
+  button:hover {
+    background: #1e40af;
+  }
+
+  .msg {
+    margin-top: 15px;
+    font-weight: bold;
+  }
+
+  .success { color: green; }
+  .error { color: red; }
+</style>
+</head>
+
+<body>
+
+<div class="box">
+  <h2>📱 Mobile Number Verification</h2>
+
+  <!-- SEND OTP -->
+  <form id="sendForm">
+    <input type="text" id="phone" placeholder="Enter phone (+91XXXXXXXXXX)" required>
+    <button type="submit">Send OTP</button>
+  </form>
+
+  <!-- VERIFY OTP -->
+  <form id="verifyForm" style="display:none;">
+    <input type="text" id="otp" placeholder="Enter OTP" required>
+    <button type="submit">Verify OTP</button>
+  </form>
+
+  <div id="message" class="msg"></div>
+</div>
+
+<script>
+let transactionId = "";
+
+const RAPID_API_KEY = "5855efc89dmsh228ed6cda271d8fp154258jsn9daXXXXXXXX"; // ← YOUR KEY
+const RAPID_API_HOST = "otp-authenticator.p.rapidapi.com";
+
+const sendForm = document.getElementById("sendForm");
+const verifyForm = document.getElementById("verifyForm");
+const message = document.getElementById("message");
+
+/* SEND OTP */
+sendForm.addEventListener("submit", function(e) {
+  e.preventDefault();
+
+  const phone = document.getElementById("phone").value;
+
+  const data = new URLSearchParams();
+  data.append("phone_number", phone);
+  data.append("channel", "sms");
+
+  const xhr = new XMLHttpRequest();
+  xhr.withCredentials = true;
+
+  xhr.onreadystatechange = function () {
+    if (xhr.readyState === 4) {
+      const res = JSON.parse(xhr.responseText);
+      console.log(res);
+
+      if (res.transaction_id) {
+        transactionId = res.transaction_id;
+        sendForm.style.display = "none";
+        verifyForm.style.display = "block";
+        message.textContent = "✅ OTP sent successfully";
+        message.className = "msg success";
+      } else {
+        message.textContent = "❌ Failed to send OTP";
+        message.className = "msg error";
+      }
+    }
+  };
+
+  xhr.open("POST", "https://otp-authenticator.p.rapidapi.com/enroll/");
+  xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
+  xhr.setRequestHeader("X-RapidAPI-Key", RAPID_API_KEY);
+  xhr.setRequestHeader("X-RapidAPI-Host", RAPID_API_HOST);
+
+  xhr.send(data);
+});
+
+/* VERIFY OTP */
+verifyForm.addEventListener("submit", function(e) {
+  e.preventDefault();
+
+  const otp = document.getElementById("otp").value;
+
+  const data = new URLSearchParams();
+  data.append("transaction_id", transactionId);
+  data.append("otp", otp);
+
+  const xhr = new XMLHttpRequest();
+  xhr.withCredentials = true;
+
+  xhr.onreadystatechange = function () {
+    if (xhr.readyState === 4) {
+      const res = JSON.parse(xhr.responseText);
+      console.log(res);
+
+      if (res.verified === true) {
+        message.textContent = "🎉 Mobile number verified successfully!";
+        message.className = "msg success";
+      } else {
+        message.textContent = "❌ Invalid OTP";
+        message.className = "msg error";
+      }
+    }
+  };
+
+  xhr.open("POST", "https://otp-authenticator.p.rapidapi.com/verify/");
+  xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
+  xhr.setRequestHeader("X-RapidAPI-Key", RAPID_API_KEY);
+  xhr.setRequestHeader("X-RapidAPI-Host", RAPID_API_HOST);
+
+  xhr.send(data);
+});
+</script>
+
+</body>
+</html>
